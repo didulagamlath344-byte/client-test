@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>K-Win Client</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="card">
+    <h1>K-Win eCard</h1>
+    <p class="muted">Notifications enable කරලා token එක save කරන්න.</p>
+
+    <button id="enableBtn">Enable Notifications</button>
+    <p id="status" class="status"></p>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDf_12oNJ_NvTkybWIhaYL3lSLB3TLE2HA",
+      authDomain: "kwin-e2ef6.firebaseapp.com",
+      projectId: "kwin-e2ef6",
+      storageBucket: "kwin-e2ef6.firebasestorage.app",
+      messagingSenderId: "407118375817",
+      appId: "1:407118375817:web:20a360eebed53fa1f80f58",
+      measurementId: "G-L47L5XMSX6"
+    };
+
+    const BACKEND_SAVE_TOKEN_URL = "https://YOUR-INFINITYFREE-DOMAIN/save-token.php";
+    const VAPID_KEY = "YOUR_VAPID_KEY";
+
+    const app = initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+
+    const enableBtn = document.getElementById("enableBtn");
+    const statusEl = document.getElementById("status");
+
+    async function registerSW() {
+      if (!("serviceWorker" in navigator)) {
+        throw new Error("Service worker not supported");
+      }
+      return await navigator.serviceWorker.register("firebase-messaging-sw.js");
+    }
+
+    async function enableNotifications() {
+      try {
+        statusEl.textContent = "Requesting permission...";
+
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          statusEl.textContent = "Permission denied.";
+          return;
+        }
+
+        const swReg = await registerSW();
+
+        const token = await getToken(messaging, {
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: swReg
+        });
+
+        if (!token) {
+          statusEl.textContent = "Token not generated.";
+          return;
+        }
+
+        await fetch(BACKEND_SAVE_TOKEN_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token })
+        });
+
+        statusEl.textContent = "Notifications enabled.";
+        console.log("FCM token:", token);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error enabling notifications.";
+      }
+    }
+
+    enableBtn.addEventListener("click", enableNotifications);
+
+    onMessage(messaging, (payload) => {
+      const title = payload?.notification?.title || "K-Win";
+      const body = payload?.notification?.body || "New notification";
+      alert(`${title}\n${body}`);
+    });
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("firebase-messaging-sw.js").catch(console.error);
+    }
+  </script>
+</body>
+</html>
